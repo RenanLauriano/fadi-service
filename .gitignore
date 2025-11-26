@@ -1,0 +1,71 @@
+# ============================================
+# PYTHON PROJECT .gitignore (with Nuitka)
+# ============================================
+
+# --- Python Artifacts ---
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pdb
+*.so
+*.dll
+*$py.class
+
+# --- Virtual Environments ---
+venv/
+.env/
+.venv/
+env/
+ENV/
+*.env
+
+# --- Packaging ---
+build/
+dist/
+*.egg-info/
+*.egg
+.eggs/
+
+# --- Logs / Cache ---
+*.log
+*.tmp
+*.bak
+*.swp
+.cache/
+.ipynb_checkpoints/
+.mypy_cache/
+.pytest_cache/
+coverage.xml
+htmlcov/
+
+# --- IDE files ---
+.vscode/
+.idea/
+*.iml
+
+# --- OS Files ---
+.DS_Store
+Thumbs.db
+
+# ============================================
+# NUITKA OUTPUTS
+# ============================================
+
+# Standard Nuitka build folders
+*.build/
+*.dist/
+*.onefile-build/
+*.onefile-dist/
+
+# Nuitka cache
+.nuitka-cache/
+
+# Optional: If you bundle OpenSSL / certs dynamically
+*.manifest
+*.exp
+*.lib
+
+# Nuitka standalone temp extraction folder name pattern
+# (during runtime, onefile extracts into /tmp/onefile_xxx)
+onefile_*  
