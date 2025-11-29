@@ -156,6 +156,7 @@ def main():
                     print('Invalid input. Press R to try to reverify with the servers. Press X to exit the app.')
         print("Activation verified.")
     except TurboActivateError as e:
+        print(TurboActivateError)
         sys.exit("Failed to check if activated: " + str(e))
 
     print("Starting FastAPI HTTPS server...")
