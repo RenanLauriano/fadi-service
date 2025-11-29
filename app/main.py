@@ -1,17 +1,26 @@
+import argparse
+import sys
+from pathlib import Path
+
 from fastapi import FastAPI
 import uvicorn
-from pathlib import Path
-import sys
 from turboactivate import (
     TurboActivate,
     IsGenuineResult,
     TurboActivateError,
     TurboActivateTrialExpiredError,
-    TA_USER,
-    TA_SYSTEM
+    TA_USER, TA_SYSTEM
 )
 
 app = FastAPI()
+
+
+def runtime_dir() -> Path:
+    if getattr(sys, "frozen", False):
+        if hasattr(sys, "_MEIPASS"):
+            return Path(sys._MEIPASS)
+        return Path(sys.executable).resolve().parent
+    return Path(__file__).resolve().parent
 
 
 @app.get("/health")
@@ -19,11 +28,11 @@ def read_health():
     return {"serverReady": True}
 
 
-def get_cert_paths() -> tuple[str, str]:
-    module_dir = Path(__file__).resolve().parent
+def get_cert_paths(cert_override: str | None, key_override: str | None) -> tuple[str, str]:
+    module_dir = runtime_dir()
 
-    certfile = module_dir / "cert.pem"
-    keyfile = module_dir / "privkey.pem"
+    certfile = Path(cert_override) if cert_override else module_dir / "cert.pem"
+    keyfile = Path(key_override) if key_override else module_dir / "privkey.pem"
 
     if not certfile.is_file() or not keyfile.is_file():
         print("ERROR: SSL certificate files not found.", file=sys.stderr)
@@ -34,7 +43,61 @@ def get_cert_paths() -> tuple[str, str]:
     return str(certfile), str(keyfile)
 
 
+def get_turboactivate_paths() -> tuple[str, str]:
+    module_dir = runtime_dir()
+    dat_path = module_dir / "TurboActivate.dat"
+    if not dat_path.is_file():
+        sys.exit(f"TurboActivate.dat not found at {dat_path}")
+
+    lib_name = "TurboActivate.dll"
+    if sys.platform == "darwin":
+        lib_name = "libTurboActivate.dylib"
+    elif sys.platform not in ("win32", "cygwin"):
+        lib_name = "libTurboActivate.so"
+
+    lib_path = module_dir / lib_name
+    if not lib_path.is_file():
+        sys.exit(f"{lib_name} not found at {lib_path}")
+
+    return str(dat_path), str(module_dir)
+
+
+def build_arg_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="TurboActivate-protected FastAPI service")
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument("--activate", metavar="PRODUCT_KEY", help="Activate the product with the provided key")
+    group.add_argument("--deactivate", action="store_true", help="Deactivate the current installation")
+    parser.add_argument("--cert-file", dest="cert_file", help="Path to SSL certificate (defaults to bundled cert.pem)")
+    parser.add_argument("--priv-file", dest="priv_file", help="Path to SSL private key (defaults to bundled privkey.pem)")
+    return parser
+
+
+def activate_product_key(ta: TurboActivate, product_key: str) -> None:
+    try:
+        if ta.check_and_save_pkey(product_key):
+            print("Product key saved successfully.")
+        else:
+            sys.exit("Product key was not valid for this product version")
+
+        ta.activate()
+        print("Activated successfully!")
+    except TurboActivateError as e:
+        sys.exit("Failed to activate product key: " + str(e))
+
+
+def deactivate_product_key(ta: TurboActivate) -> None:
+    try:
+        print("Deactivating...")
+        ta.deactivate(True)
+        print("Deactivated successfully.")
+    except TurboActivateError as e:
+        sys.exit("Failed to deactivate product key: " + str(e))
+
+
 def main():
+    parser = build_arg_parser()
+    args = parser.parse_args()
+
     DAYS_BETWEEN_CHECKS = 90
     GRACE_PERIOD_LENGTH = 14
     trial_days = 0
@@ -43,47 +106,28 @@ def main():
     # now begins the licensing bit of the code
     isGenuine = False
 
+    ta_dat_path, ta_library_folder = get_turboactivate_paths()
+
     try:
-        ta = TurboActivate("kqleto2xmx3cyolhetce7dz6tju3txa", TA_USER, TA_SYSTEM)
+        ta = TurboActivate("kqleto2xmx3cyolhetce7dz6tju3txa", TA_USER, ta_dat_path, ta_library_folder)
         #=============
 
-        # Whether to prompt for the product key
-        prompt_for_key = False
+        if args.activate:
+            activate_product_key(ta, args.activate)
+            return
 
-        if not isGenuine:
-            # ask the user if they want to enter their pkey
-            print('Would you like to enter your pkey (y/n) [n]: ')
-            prompt_res = sys.stdin.read(1)
-
-            if prompt_res != "" and prompt_res == "y":
-                prompt_for_key = True
-            else:
-                prompt_for_key = False
-
-        # Now actually prompt for the product key and try to activate
-        if prompt_for_key:
-            try:
-                # prompt the user for a product key
-                pkey = input('Enter your product key to activate: ')
-
-                if ta.check_and_save_pkey(pkey):
-                    print("Product key saved successfully.")
-                else:
-                    sys.exit("Product key was not valid for this product version")
-
-            except TurboActivateError as e:
-                sys.exit("Failed to check or save product key: " + str(e))
+        if args.deactivate:
+            deactivate_product_key(ta)
+            return
 
             # try to activate the product key
-            try:
-                ta.activate()
+        try:
+            ta.activate()
+            isGenuine = True
+        except TurboActivateError as e:
+            print("Product not activated, trying trial...")
 
-                isGenuine = True
-                print("Activated successfully!")
-
-            except TurboActivateError as e:
-                sys.exit("Failed to activate online: " + str(e))
-        else: 
+        if not isGenuine:
             try:
                 # Start or re-validate the trial if it has already started.
                 # This need to be called at least once before you can use
@@ -156,12 +200,11 @@ def main():
                     print('Invalid input. Press R to try to reverify with the servers. Press X to exit the app.')
         print("Activation verified.")
     except TurboActivateError as e:
-        print(TurboActivateError)
         sys.exit("Failed to check if activated: " + str(e))
 
     print("Starting FastAPI HTTPS server...")
 
-    certfile, keyfile = get_cert_paths()
+    certfile, keyfile = get_cert_paths(args.cert_file, args.priv_file)
     print(f"Using certfile={certfile}")
     print(f"Using keyfile={keyfile}")
 
