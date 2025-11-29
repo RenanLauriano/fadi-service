@@ -44,7 +44,7 @@ def main():
     isGenuine = False
 
     try:
-        ta = TurboActivate("kqleto2xmx3cyolhetce7dz6tju3txa", TA_USER)
+        ta = TurboActivate("kqleto2xmx3cyolhetce7dz6tju3txa", TA_USER, TA_SYSTEM)
         #=============
 
         # Whether to prompt for the product key
