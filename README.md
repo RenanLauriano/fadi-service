@@ -2,8 +2,14 @@
 
 ## Setup
 
+First, ensure Python 3.11 is installed (other versions are not supported):
+
+- **Windows** – download the Python 3.11 Windows installer from [python.org](https://www.python.org/downloads/windows/) and enable “Add Python to PATH” during installation.
+- **Linux** – use your package manager (e.g., `sudo apt install python3.11 python3.11-venv` on Debian/Ubuntu, `sudo dnf install python3.11` on Fedora) or install from [python.org](https://www.python.org/downloads/source/).
+- **macOS** – install via [python.org](https://www.python.org/downloads/macos/), Homebrew (`brew install python@3.11`), or Xcode Command Line Tools (`xcode-select --install`).
+
 ```bash
-python -m venv .venv
+python3.11 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 ```
